@@ -26,7 +26,9 @@ type Enriched = {
 
 /* ---------- Helpers ---------- */
 
-function formatGrapes(grapes: Extracted["grapes"]): string {
+function formatGrapes(
+  grapes: string | string[] | null | undefined
+): string {
   if (!grapes) return "—";
   if (Array.isArray(grapes)) return grapes.join(", ");
   if (typeof grapes === "string") return grapes;

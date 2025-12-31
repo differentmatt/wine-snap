@@ -10,7 +10,7 @@ type Extracted = {
   vintage: string | null;
   region: string | null;
   country: string | null;
-  grapes: string[] | null;
+  grapes: string[] | string | null;
   appellation: string | null;
   abv: string | null;
   label_text_read: string | null;
@@ -22,20 +22,16 @@ type Enriched = {
   style_overview?: string;
   typical_tasting_notes?: string;
   food_pairings?: string[];
-  serving?: {
-    temperature_c?: number;
-    decanting?: string;
-    glassware?: string;
-  };
-  aging_window?: string;
-  producer_background?: string | null;
-  region_background?: string;
-  price_context?: string;
-  uncertainties?: string[];
-  followup_questions?: string[];
 };
 
 /* ---------- Helpers ---------- */
+
+function formatGrapes(grapes: Extracted["grapes"]): string {
+  if (!grapes) return "—";
+  if (Array.isArray(grapes)) return grapes.join(", ");
+  if (typeof grapes === "string") return grapes;
+  return "—";
+}
 
 async function resizeToJpegBase64(
   file: File,
@@ -71,14 +67,14 @@ async function resizeToJpegBase64(
 /* ---------- Component ---------- */
 
 export default function Page() {
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState("");
   const [extracted, setExtracted] = useState<Extracted | null>(null);
   const [enriched, setEnriched] = useState<Enriched | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function onPick(file: File) {
-    setStatus("Analyzing wine label… this can take a few seconds");
+    setStatus("Analyzing wine label…");
     setExtracted(null);
     setEnriched(null);
     setError(null);
@@ -105,8 +101,8 @@ export default function Page() {
         return;
       }
 
-      setExtracted(data.extracted);
-      setEnriched(data.enriched);
+      setExtracted(data.extracted ?? null);
+      setEnriched(data.enriched ?? null);
       setStatus("Done");
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -205,13 +201,13 @@ export default function Page() {
 
           <h3>From the label</h3>
           <ul>
-            <li><strong>Producer:</strong> {extracted?.producer}</li>
-            <li><strong>Wine:</strong> {extracted?.wine_name}</li>
-            <li><strong>Vintage:</strong> {extracted?.vintage}</li>
-            <li><strong>Region:</strong> {extracted?.region}</li>
-            <li><strong>Country:</strong> {extracted?.country}</li>
-            <li><strong>Grapes:</strong> {extracted?.grapes?.join(", ")}</li>
-            <li><strong>Appellation:</strong> {extracted?.appellation}</li>
+            <li><strong>Producer:</strong> {extracted?.producer ?? "—"}</li>
+            <li><strong>Wine:</strong> {extracted?.wine_name ?? "—"}</li>
+            <li><strong>Vintage:</strong> {extracted?.vintage ?? "—"}</li>
+            <li><strong>Region:</strong> {extracted?.region ?? "—"}</li>
+            <li><strong>Country:</strong> {extracted?.country ?? "—"}</li>
+            <li><strong>Grapes:</strong> {formatGrapes(extracted?.grapes)}</li>
+            <li><strong>Appellation:</strong> {extracted?.appellation ?? "—"}</li>
           </ul>
 
           {extracted?.label_text_read && (
@@ -232,7 +228,7 @@ export default function Page() {
           )}
 
           <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-            Sections above combine label information with typical guidance for this wine style.
+            Some details are inferred based on typical examples of this wine style.
           </p>
         </div>
       )}

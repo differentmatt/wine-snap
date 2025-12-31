@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+/* ---------- Types ---------- */
+
 type Extracted = {
   producer: string | null;
   wine_name: string | null;
@@ -33,6 +35,41 @@ type Enriched = {
   followup_questions?: string[];
 };
 
+/* ---------- Helpers ---------- */
+
+async function resizeToJpegBase64(
+  file: File,
+  maxDim = 1280,
+  quality = 0.82
+): Promise<string> {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.src = url;
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Image load failed"));
+  });
+
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No canvas context");
+
+  ctx.drawImage(img, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+  URL.revokeObjectURL(url);
+  return dataUrl.split(",")[1];
+}
+
+/* ---------- Component ---------- */
+
 export default function Page() {
   const [status, setStatus] = useState<string>("");
   const [extracted, setExtracted] = useState<Extracted | null>(null);
@@ -48,44 +85,43 @@ export default function Page() {
 
     setPreviewUrl(URL.createObjectURL(file));
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = String(reader.result).split(",")[1];
+    try {
+      const base64 = await resizeToJpegBase64(file);
 
-      try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            imageBase64: base64,
-            mediaType: "image/jpeg",
-          }),
-        });
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mediaType: "image/jpeg",
+        }),
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          setError(JSON.stringify(data, null, 2));
-          setStatus("Error");
-          return;
-        }
-
-        setExtracted(data.extracted);
-        setEnriched(data.enriched);
-        setStatus("Done");
-      } catch (e: any) {
-        setError(String(e));
+      if (!res.ok) {
+        setError(JSON.stringify(data, null, 2));
         setStatus("Error");
+        return;
       }
-    };
 
-    reader.readAsDataURL(file);
+      setExtracted(data.extracted);
+      setEnriched(data.enriched);
+      setStatus("Done");
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+      setStatus("Error");
+    }
   }
+
+  /* ---------- Styles ---------- */
 
   const bg = "#0b0b0c";
   const fg = "#f5f5f6";
   const cardBg = "#ffffff";
   const cardFg = "#111111";
+
+  /* ---------- Render ---------- */
 
   return (
     <main
@@ -125,7 +161,6 @@ export default function Page() {
         </p>
       )}
 
-      {/* MAIN RESULT */}
       {(extracted || enriched) && (
         <div
           style={{
